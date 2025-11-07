@@ -8,6 +8,8 @@
 
 #define spiHWdisable() SPCR = 0
 
+unsigned int prog_pagesize = 0;
+uchar prog_pagecounter = 0;
 extern unsigned int prog_pagesize;
 extern uchar prog_pagecounter;
 uchar low_byte;
@@ -35,7 +37,7 @@ void puls_xt1(void)
 	_delay_us(5);
 }
 
-//Îòïðàâêà/ïðè¸ì ïîñëåäîâàòåëüíîãî ïàêåòà
+//Отправка/приём последовательного пакета
 uchar avr_serialExchange(uchar instr, uchar data)
 {
 	uchar i;
@@ -47,16 +49,16 @@ uchar avr_serialExchange(uchar instr, uchar data)
 	for(i = 0; i < 11; i++)
 	{
 		_delay_us(1);
-		//Âûñòàâëÿåì SII
+		//Выставляем SII
 		if((command >> (10 - i) & 0x01)) SII_HIGH
 		else SII_LOW
-		//Âûñòàâëÿåì SDI
+		//Выставляем SDI
 		if((dat >> (10 - i) & 0x01)) SDI_HIGH
 		else SDI_LOW
 		SCI_HIGH
 		_delay_us(1);
 		SCI_LOW
-		//Çàù¸ëêèâàåì SDO
+		//Защёлкиваем SDO
 		if(DATA_PIN & 0x01) request |= (1 << (10 - i));
 	}
 	return (request>>3);
@@ -179,45 +181,43 @@ uchar avr_progMode(void)
     if (avr_getId(0) == 0x1E) return 0;
 
     return 1; // Все методы не сработали
-}
-
-//Çàãðóçêà êîìàíäû
+}//Загрузка команды
 void avr_loadComm(uchar command)
 {
 	if(dev_type == 0x00 || dev_type == 0x01)
 	{
 		DATA_OUT
 		DATA_PORT = command;
-		//Óñòàíàâëèâàåì áèòû XA íà çàãðóçêó êîììàíäû [1:0]
+		//Устанавливаем биты XA на загрузку комманды [1:0]
 		XA1_HIGH
 		XA0_LOW
-		//Óñòàíàâëèâàåì áèòû BS
+		//Устанавливаем биты BS
 		BS1_LOW
 		if(dev_type == 0) BS2_LOW
-		//Óñòàíàâëèâàåì êîä êîììàíäû
+		//Устанавливаем код комманды
 		_delay_us(1);
-		//Äà¸ì èìïóëüñ íà XT1
+		//Даём импульс на XT1
 		puls_xt1();
 	}
 }
 
-//Çàãðóçêà áàéòà àäðåñà
+//Загрузка байта адреса
 void avr_loadAdd(uchar add, uchar hi_lo)
 {
 	if(dev_type == 0x00 || dev_type == 0x01)
 	{
-		//Óñòàíàâëèâàåì áèòû XA íà çàãðóçêó êîììàíäû [0:0]
+		//Устанавливаем биты XA на загрузку комманды [0:0]
 		XA1_LOW
 		XA0_LOW
-		//Óñòàíîâêà BS0 (ñòàðøèé áàéò àäðåñà - 1, ìëàäøèé - 0)
+		//Установка BS0 (старший байт адреса - 1, младший - 0)
 		if(hi_lo) BS1_HIGH
 		else BS1_LOW
 		if(dev_type == 0x00) BS2_LOW
-		//Óñòàíàâëèâàåì àäðåñ
+		//Устанавливаем адрес
 		DATA_OUT
 		DATA_PORT = add;
 		_delay_us(5);
-		//Äà¸ì èìïóëüñ íà XT1
+		//Даём импульс на XT1
 		puls_xt1();
 	}
 }
