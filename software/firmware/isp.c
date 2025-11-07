@@ -468,34 +468,15 @@ uchar ispEnterProgrammingMode()
 
 void ispUpdateExtended(uint32_t address)
 {
-    static uint32_t last_address = 0xFFFFFFFF; // Инициализируем невалидным значением
-    uchar curr_hiaddr;
+    uint8_t curr_hi = (address >> 17) & 0xFF;   // старший 128-Кб блок
+    if ((isp_hiaddr ^ curr_hi) == 0) return;    // быстрый XOR-check
 
-    // Быстрая проверка - если адрес в той же 128КБ странице, ничего не делаем
-    if ((address >> 17) == (last_address >> 17)) {
-        return;
-    }
-    
-    curr_hiaddr = (uchar)(address >> 17);
+    isp_hiaddr = curr_hi;
 
-    /* Двойная проверка для надежности */
-    if(isp_hiaddr != curr_hiaddr)
-    {
-        isp_hiaddr = curr_hiaddr;
-        last_address = address; // Сохраняем для следующей быстрой проверки
-        
-        /* Загружаем старший байт адреса */
-        DATA_OUT;
-        XA0_LOW;
-        XA1_LOW;
-        BS1_LOW;
-        BS2_HIGH;
-        DATA_PORT = isp_hiaddr;
-        puls_xt1();
-        
-        // Небольшая задержка для стабилизации
-        _delay_us(2);
-    }
+    DATA_OUT;
+    XA0_LOW; XA1_LOW; BS1_LOW; BS2_HIGH;
+    DATA_PORT = curr_hi;
+    puls_xt1();                                 // один импульс
 }
 
 /* ---------- основная функция ---------- */
