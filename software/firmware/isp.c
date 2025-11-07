@@ -595,79 +595,64 @@ uchar serialWriteFlash(uint32_t address, uint8_t data, uint8_t pollmode)
     return 0;
 }
 
-uchar ispFlushPage(unsigned long address, uchar pollvalue)
+uchar ispFlushPage(uint32_t address, uint8_t pollvalue)
 {
-	if(dev_type == 0x00 || dev_type == 0x01)
-	{
-		avr_loadAdd((address >> 9), 1);
-		ispUpdateExtended(address);
-		WR_LOW
-		_delay_us(1);
-		WR_HIGH
-		_delay_ms(8);
-		XA1_HIGH
-		XA0_LOW
-		DATA_PORT = 0x00;
-		puls_xt1();
-		return 0;
-	}
-	else
-	{
-		avr_serialExchange(0x1C, (address >> 9));
-		avr_serialExchange(0x64, 0x00);
-		avr_serialExchange(0x6C, 0x00);
-		//avr_bsySerial();
-		_delay_ms(8);
-		avr_serialExchange(0x4C, 0x00);
-	}
+    if (dev_type == 0x00 || dev_type == 0x01) {
+        /* ---------- Параллельный режим ---------- */
+        avr_loadAdd((address >> 9), 1);
+        ispUpdateExtended(address);
+        WR_LOW;  _delay_us(1);
+        WR_HIGH; _delay_ms(8);
+        XA1_HIGH; XA0_LOW;
+        DATA_PORT = 0x00;
+        puls_xt1();
+        return 0;
+    }
 
-	return 1; /* error */
+    /* ---------- Serial mode (25-series) ---------- */
+    avr_serialExchange(0x1C, (address >> 9));
+    avr_serialExchange(0x64, 0x00);
+    avr_serialExchange(0x6C, 0x00);
+    _delay_ms(8);
+    avr_serialExchange(0x4C, 0x00);
+    return 0;   // успех
 }
 
-uchar ispReadEEPROM(unsigned int address)
+uchar ispReadEEPROM(uint16_t address)
 {
-	uchar result = 0;
+    if (dev_type == 0x00 || dev_type == 0x01) {
+        /* ---------- Параллельный режим ---------- */
+        avr_loadComm(0x03);
+        avr_loadAdd((address & 0xFF), 1);
+        avr_loadAdd((address & 0xFF), 0);
+        DATA_IN;
+        BS1_LOW; OE_LOW;  _delay_us(1);
+        uint8_t result = DATA_PIN;
+        OE_HIGH;
+        return result;
+    }
 
-	if(dev_type == 0 || dev_type == 1)
-	{
-		avr_loadComm(0x03);
-		avr_loadAdd((address & 0xFF), 1);
-		avr_loadAdd((address & 0xFF),0);
-		DATA_IN
-		BS1_LOW
-		OE_LOW
-		_delay_us(1);
-		result = DATA_PIN;
-		OE_HIGH
-	}
-	else
-	{
-		avr_serialExchange(0x4C, 0x03);
-		avr_serialExchange(0x0C, (address & 0xFF));
-		avr_serialExchange(0x1C, ((address >> 8) & 0xFF));
-		avr_serialExchange(0x68, 0x00);
-		result = avr_serialExchange(0x6C, 0x00);
-	}
-
-	return result;
+    /* ---------- Serial mode (25-series) ---------- */
+    avr_serialExchange(0x4C, 0x03);
+    avr_serialExchange(0x0C, (address & 0xFF));
+    avr_serialExchange(0x1C, (address >> 8));
+    avr_serialExchange(0x68, 0x00);
+    return avr_serialExchange(0x6C, 0x00);
 }
 
-uchar ispWriteEEPROM(unsigned int address, uchar data)
+uchar ispWriteEEPROM(uint16_t address, uint8_t data)
 {
-	if(dev_type == 0 || dev_type == 1)
-	{
-		//NOP
-	}
-	else
-	{
-		avr_serialExchange(0x4C, 0x11);
-		avr_serialExchange(0x0C, (address & 0xFF));
-		avr_serialExchange(0x1C, (address >> 8));
-		avr_serialExchange(0x2C, data);
-		avr_serialExchange(0x6D, 0x00);
-		avr_serialExchange(0x64, 0x00);
-		avr_serialExchange(0x6C, 0x00);
-		avr_bsySerial();
-	}
-	return 0;
+    /* ---------- Serial mode (25-series) ---------- */
+    /* 25-xx **не имеют** EEPROM – возвращаем 0 (успех) */
+    if (dev_type == 0x00 || dev_type == 0x01) return 0;
+
+    avr_serialExchange(0x4C, 0x11);
+    avr_serialExchange(0x0C, (address & 0xFF));
+    avr_serialExchange(0x1C, (address >> 8));
+    avr_serialExchange(0x2C, data);
+    avr_serialExchange(0x6D, 0x00);
+    avr_serialExchange(0x64, 0x00);
+    avr_serialExchange(0x6C, 0x00);
+    avr_bsySerial();
+    return 0;
 }
