@@ -524,46 +524,51 @@ uchar ispReadFlash(unsigned long address)
 	return result;
 }
 
-uchar ispWriteFlash(unsigned long address, uchar data, uchar pollmode)
+uchar ispWriteFlash(uint32_t address, uint8_t data, uint8_t pollmode)
 {
-	if(dev_type == 0x00 || dev_type == 0x01)
-	{
-		if(prog_pagecounter == prog_pagesize) avr_loadComm(0x10); //Page Write command
-		if(!(address & 0x1))
-		{
-			low_byte = data;
-			return 0;
-		}
-		avr_loadAdd((address >> 1) & 0xFF, 0);
-		XA0_HIGH
-		XA1_LOW
-		DATA_PORT = low_byte;
-		puls_xt1();
-		BS1_HIGH
-		DATA_PORT = data;
-		puls_xt1();
-		PAGEL_HIGH
-		_delay_us(1);
-		PAGEL_LOW
-		_delay_us(1);
-		return 0;
-	}
-	else
-	{
-		if(prog_pagecounter == prog_pagesize) avr_serialExchange(0x4C, 0x10);//Load "Write Flash" commang
-		if(!(address & 0x1))
-		{
-			low_byte = data;
-			return 0;
-		}
-		avr_serialExchange(0x0C, ((address >> 1) & 0xFF)); //Load LOW address byte
-		avr_serialExchange(0x2C, low_byte);		   //Load LOW data byte
-		avr_serialExchange(0x3C, data);	   //Load HIGH data byte
-		avr_serialExchange(0x7D, 0x00);
-		avr_serialExchange(0x7C, 0x00);
-		return 0;
-	}
-	return 1; // error
+    /* ----- выбираем режим ----- */
+    if (dev_type == 0x00 || dev_type == 0x01) {
+        /* ---------- Параллельный режим ---------- */
+        if (prog_pagecounter >= prog_pagesize) {
+            avr_loadComm(0x10);          // Page Write
+        }
+
+        if (!(address & 1)) {            // LOW байт
+            low_byte = data;
+            return 0;
+        }
+
+        /* HIGH байт – записываем слово */
+        avr_loadAdd((address >> 1) & 0xFF, 0);
+        XA0_HIGH; XA1_LOW;
+        DATA_PORT = low_byte;
+        puls_xt1();
+
+        BS1_HIGH;
+        DATA_PORT = data;
+        puls_xt1();
+
+        PAGEL_HIGH; _delay_us(1);
+        PAGEL_LOW;  _delay_us(1);
+        return 0;
+    }
+
+    /* ---------- Serial mode (25-series) ---------- */
+    if (prog_pagecounter >= prog_pagesize) {
+        avr_serialExchange(0x4C, 0x10);   // Write Flash command
+    }
+    if (!(address & 1)) {                 // LOW байт
+        low_byte = data;
+        return 0;
+    }
+
+    /* HIGH байт – записываем слово */
+    avr_serialExchange(0x0C, (address >> 1) & 0xFF); // LOW address
+    avr_serialExchange(0x2C, low_byte);              // LOW data
+    avr_serialExchange(0x3C, data);                  // HIGH data
+    avr_serialExchange(0x7D, 0x00);                  // dummy
+    avr_serialExchange(0x7C, 0x00);                  // dummy
+    return 0;
 }
 
 uchar ispFlushPage(unsigned long address, uchar pollvalue)
