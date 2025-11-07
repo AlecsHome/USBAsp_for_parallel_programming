@@ -14,6 +14,18 @@
 #define ISP_MISO  PB6
 #define ISP_SCK   PB7
 
+// добавляем макросы для безопасной работы с портами
+#define SAFE_GPIO_WRITE(port, pin, state) \
+    do { \
+        if (state) { \
+            port |= (1 << pin); \
+        } else { \
+            port &= ~(1 << pin); \
+        } \
+    } while(0)
+
+#define GPIO_SET_OUTPUT(ddr, pin)   (ddr |= (1 << pin))
+#define GPIO_SET_INPUT(ddr, pin)    (ddr &= ~(1 << pin))
 
 //Parallel programming defines
 #define DATA_IN				DDRA = 0x00;
