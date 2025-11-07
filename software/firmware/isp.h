@@ -14,7 +14,7 @@
 #define ISP_MISO  PB6
 #define ISP_SCK   PB7
 
-// добавляем макросы для безопасной работы с портами
+// В isp.h добавляем макросы для безопасной работы с портами
 #define SAFE_GPIO_WRITE(port, pin, state) \
     do { \
         if (state) { \
@@ -126,4 +126,6 @@ void ispSetSCKOption(uchar sckoption);
 /* load extended address byte */
 void ispLoadExtendedAddressByte(unsigned long address);
 
+uchar serialWriteFlash(uint32_t address, uint8_t data, uint8_t pollmode);
+uchar parallelWriteFlash(uint32_t address, uint8_t data, uint8_t pollmode);
 #endif /* __isp_h_included__ */
