@@ -181,7 +181,9 @@ uchar avr_progMode(void)
     if (avr_getId(0) == 0x1E) return 0;
 
     return 1; // Все методы не сработали
-}//Загрузка команды
+}
+
+//Загрузка команды
 void avr_loadComm(uchar command)
 {
 	if(dev_type == 0x00 || dev_type == 0x01)
@@ -529,36 +531,56 @@ uchar ispWriteFlash(uint32_t address, uint8_t data, uint8_t pollmode)
     /* ----- выбираем режим ----- */
     if (dev_type == 0x00 || dev_type == 0x01) {
         /* ---------- Параллельный режим ---------- */
-        if (prog_pagecounter >= prog_pagesize) {
-            avr_loadComm(0x10);          // Page Write
-        }
+        return parallelWriteFlash(address, data, pollmode);
+    } else {
+        /* ---------- Serial mode (25-series) ---------- */
+        return serialWriteFlash(address, data, pollmode);
+    }
+}
 
-        if (!(address & 1)) {            // LOW байт
-            low_byte = data;
-            return 0;
-        }
+/* ---------- Параллельный режим ---------- */
+uchar parallelWriteFlash(uint32_t address, uint8_t data, uint8_t pollmode)
+{
+    if (prog_pagecounter >= prog_pagesize) {
+        avr_loadComm(0x10);          // Page Write
+        prog_pagecounter = 0;
+    }
 
-        /* HIGH байт – записываем слово */
-        avr_loadAdd((address >> 1) & 0xFF, 0);
-        XA0_HIGH; XA1_LOW;
-        DATA_PORT = low_byte;
-        puls_xt1();
-
-        BS1_HIGH;
-        DATA_PORT = data;
-        puls_xt1();
-
-        PAGEL_HIGH; _delay_us(1);
-        PAGEL_LOW;  _delay_us(1);
+    if (!(address & 1)) {            // LOW байт
+        low_byte = data;
+        prog_pagecounter++;
         return 0;
     }
 
-    /* ---------- Serial mode (25-series) ---------- */
+    /* HIGH байт – записываем слово */
+    avr_loadAdd((address >> 1) & 0xFF, 0);
+
+    XA0_HIGH; XA1_LOW;
+    DATA_PORT = low_byte;
+    puls_xt1();
+
+    BS1_HIGH;
+    DATA_PORT = data;
+    puls_xt1();
+
+    PAGEL_HIGH; _delay_us(1);
+    PAGEL_LOW;  _delay_us(1);
+
+    prog_pagecounter++;
+    return 0;
+}
+
+/* ---------- Serial mode ---------- */
+uchar serialWriteFlash(uint32_t address, uint8_t data, uint8_t pollmode)
+{
     if (prog_pagecounter >= prog_pagesize) {
-        avr_serialExchange(0x4C, 0x10);   // Write Flash command
+        avr_serialExchange(0x4C, 0x10);   // Page Write
+        prog_pagecounter = 0;
     }
+
     if (!(address & 1)) {                 // LOW байт
         low_byte = data;
+        prog_pagecounter++;
         return 0;
     }
 
@@ -568,6 +590,8 @@ uchar ispWriteFlash(uint32_t address, uint8_t data, uint8_t pollmode)
     avr_serialExchange(0x3C, data);                  // HIGH data
     avr_serialExchange(0x7D, 0x00);                  // dummy
     avr_serialExchange(0x7C, 0x00);                  // dummy
+
+    prog_pagecounter++;
     return 0;
 }
 
