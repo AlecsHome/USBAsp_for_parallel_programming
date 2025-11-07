@@ -84,6 +84,9 @@ uchar avr_getFuse(uchar);
 void avrSetFuse(uchar, uchar);
 void avr_erase(void);
 
+extern unsigned int prog_pagesize;
+extern uchar prog_pagecounter;
+
 
 /* Prepare connection to target device */
 void ispConnect();
