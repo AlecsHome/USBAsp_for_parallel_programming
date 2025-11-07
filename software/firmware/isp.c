@@ -35,7 +35,7 @@ void puls_xt1(void)
 	_delay_us(5);
 }
 
-//Отправка/приём последовательного пакета
+//ГЋГІГЇГ°Г ГўГЄГ /ГЇГ°ГЁВёГ¬ ГЇГ®Г±Г«ГҐГ¤Г®ГўГ ГІГҐГ«ГјГ­Г®ГЈГ® ГЇГ ГЄГҐГІГ 
 uchar avr_serialExchange(uchar instr, uchar data)
 {
 	uchar i;
@@ -47,16 +47,16 @@ uchar avr_serialExchange(uchar instr, uchar data)
 	for(i = 0; i < 11; i++)
 	{
 		_delay_us(1);
-		//Выставляем SII
+		//Г‚Г»Г±ГІГ ГўГ«ГїГҐГ¬ SII
 		if((command >> (10 - i) & 0x01)) SII_HIGH
 		else SII_LOW
-		//Выставляем SDI
+		//Г‚Г»Г±ГІГ ГўГ«ГїГҐГ¬ SDI
 		if((dat >> (10 - i) & 0x01)) SDI_HIGH
 		else SDI_LOW
 		SCI_HIGH
 		_delay_us(1);
 		SCI_LOW
-		//Защёлкиваем SDO
+		//Г‡Г Г№ВёГ«ГЄГЁГўГ ГҐГ¬ SDO
 		if(DATA_PIN & 0x01) request |= (1 << (10 - i));
 	}
 	return (request>>3);
@@ -80,107 +80,144 @@ void avr_bsySerial(void)
 
 uchar avr_progMode(void)
 {
-	uchar i;
-	//Full bus device - dev_type = 0
-	VPP_HIGH
-	XTAIL_LOW
-	XA0_HIGH
-	XA1_HIGH
-	_delay_ms(10);
-	//Reset to low
-	VPP_LOW
-	_delay_ms(10);
-	//Toggle XTAL1 at least 6 times
-	for(i = 0; i < 10; i++) puls_xt1();
-	//Set the Prog_enable pins to "0000"
-	PAGEL_LOW
-	XA0_LOW
-	XA1_LOW
-	BS1_LOW
-	_delay_ms(20);
-	//Apply 11.5 - 12.5V to RESET
-	VPP_HIGH
-	_delay_ms(50);
-	dev_type = 0x00;
-	if(avr_getId(0) == 0x1E) return 0;
+    uchar i;
+    uint16_t timeout = 0;
+    
+    // Full bus device - dev_type = 0
+    VPP_HIGH
+    XTAIL_LOW
+    XA0_HIGH
+    XA1_HIGH
+    _delay_ms(10);
+    
+    // Reset to low
+    VPP_LOW
+    _delay_ms(10);
+    
+    // Toggle XTAL1 at least 6 times
+    for(i = 0; i < 10; i++) {
+        puls_xt1();
+        _delay_us(10);
+    }
+    
+    // Set the Prog_enable pins to "0000"
+    PAGEL_LOW
+    XA0_LOW
+    XA1_LOW
+    BS1_LOW
+    _delay_ms(20);
+    
+    // Apply 11.5 - 12.5V to RESET
+    VPP_HIGH
+    _delay_ms(50);
+    
+    dev_type = 0x00;
+    
+    // РџСЂРѕРІРµСЂСЏРµРј ID СЃ С‚Р°Р№РјР°СѓС‚РѕРј
+    while(avr_getId(0) != 0x1E) {
+        if (timeout++ > 1000) {
+            break; // РўР°Р№РјР°СѓС‚ РґР»СЏ Full bus
+        }
+        _delay_ms(1);
+    }
+    if (avr_getId(0) == 0x1E) return 0;
 
-	//Shorrt bus device - dev_type = 1
-	VDD_LOW
-	_delay_ms(200);
-	XA0_LOW
-	XA1_LOW
-	BS1_LOW
-	WR_LOW
-	OE_LOW
-	VPP_LOW
-	_delay_ms(20);
-	VDD_HIGH
-	_delay_ms(10);
-	VPP_HIGH
-	_delay_ms(500);
-	WR_HIGH
-	OE_HIGH
+    timeout = 0;
+    // Short bus device - dev_type = 1
+    VDD_LOW
+    _delay_ms(200);
+    XA0_LOW
+    XA1_LOW
+    BS1_LOW
+    WR_LOW
+    OE_LOW
+    VPP_LOW
+    _delay_ms(20);
+    VDD_HIGH
+    _delay_ms(10);
+    VPP_HIGH
+    _delay_ms(500);
+    WR_HIGH
+    OE_HIGH
 
-	dev_type = 0x01;
-	if(avr_getId(0) == 0x1E) return 0;
+    dev_type = 0x01;
+    
+    // РџСЂРѕРІРµСЂСЏРµРј ID СЃ С‚Р°Р№РјР°СѓС‚РѕРј
+    while(avr_getId(0) != 0x1E) {
+        if (timeout++ > 1000) {
+            break; // РўР°Р№РјР°СѓС‚ РґР»СЏ Short bus
+        }
+        _delay_ms(1);
+    }
+    if (avr_getId(0) == 0x1E) return 0;
 
-	//Serial HV Programming
-	VDD_LOW
-	SCI_LOW
-	DATA_OUT
-	SDI_LOW
-	SII_LOW
-	SDO_LOW
-	VPP_LOW
-	_delay_ms(10);
-	VDD_HIGH
-	VPP_HIGH
-	_delay_ms(20);
-	DATA_IN
-	_delay_us(500);
-	dev_type = 0x02;
-	if(avr_getId(0) == 0x1E) return 0;
+    timeout = 0;
+    // Serial HV Programming
+    VDD_LOW
+    SCI_LOW
+    DATA_OUT
+    SDI_LOW
+    SII_LOW
+    SDO_LOW
+    VPP_LOW
+    _delay_ms(10);
+    VDD_HIGH
+    VPP_HIGH
+    _delay_ms(20);
+    DATA_IN
+    _delay_us(500);
+    
+    dev_type = 0x02;
+    
+    // РџСЂРѕРІРµСЂСЏРµРј ID СЃ С‚Р°Р№РјР°СѓС‚РѕРј
+    while(avr_getId(0) != 0x1E) {
+        if (timeout++ > 1000) {
+            break; // РўР°Р№РјР°СѓС‚ РґР»СЏ Serial HV
+        }
+        _delay_ms(1);
+    }
+    if (avr_getId(0) == 0x1E) return 0;
 
-	return 1;
+    return 1; // Р’СЃРµ РјРµС‚РѕРґС‹ РЅРµ СЃСЂР°Р±РѕС‚Р°Р»Рё
 }
 
-//Загрузка команды
+//Г‡Г ГЈГ°ГіГ§ГЄГ  ГЄГ®Г¬Г Г­Г¤Г»
 void avr_loadComm(uchar command)
 {
 	if(dev_type == 0x00 || dev_type == 0x01)
 	{
 		DATA_OUT
 		DATA_PORT = command;
-		//Устанавливаем биты XA на загрузку комманды [1:0]
+		//Г“Г±ГІГ Г­Г ГўГ«ГЁГўГ ГҐГ¬ ГЎГЁГІГ» XA Г­Г  Г§Г ГЈГ°ГіГ§ГЄГі ГЄГ®Г¬Г¬Г Г­Г¤Г» [1:0]
 		XA1_HIGH
 		XA0_LOW
-		//Устанавливаем биты BS
+		//Г“Г±ГІГ Г­Г ГўГ«ГЁГўГ ГҐГ¬ ГЎГЁГІГ» BS
 		BS1_LOW
 		if(dev_type == 0) BS2_LOW
-		//Устанавливаем код комманды
+		//Г“Г±ГІГ Г­Г ГўГ«ГЁГўГ ГҐГ¬ ГЄГ®Г¤ ГЄГ®Г¬Г¬Г Г­Г¤Г»
 		_delay_us(1);
-		//Даём импульс на XT1
+		//Г„Г ВёГ¬ ГЁГ¬ГЇГіГ«ГјГ± Г­Г  XT1
 		puls_xt1();
 	}
 }
 
-//Загрузка байта адреса
+//Г‡Г ГЈГ°ГіГ§ГЄГ  ГЎГ Г©ГІГ  Г Г¤Г°ГҐГ±Г 
 void avr_loadAdd(uchar add, uchar hi_lo)
 {
 	if(dev_type == 0x00 || dev_type == 0x01)
 	{
-		//Устанавливаем биты XA на загрузку комманды [0:0]
+		//Г“Г±ГІГ Г­Г ГўГ«ГЁГўГ ГҐГ¬ ГЎГЁГІГ» XA Г­Г  Г§Г ГЈГ°ГіГ§ГЄГі ГЄГ®Г¬Г¬Г Г­Г¤Г» [0:0]
 		XA1_LOW
 		XA0_LOW
-		//Установка BS0 (старший байт адреса - 1, младший - 0)
+		//Г“Г±ГІГ Г­Г®ГўГЄГ  BS0 (Г±ГІГ Г°ГёГЁГ© ГЎГ Г©ГІ Г Г¤Г°ГҐГ±Г  - 1, Г¬Г«Г Г¤ГёГЁГ© - 0)
 		if(hi_lo) BS1_HIGH
 		else BS1_LOW
 		if(dev_type == 0x00) BS2_LOW
-		//Устанавливаем адрес
+		//Г“Г±ГІГ Г­Г ГўГ«ГЁГўГ ГҐГ¬ Г Г¤Г°ГҐГ±
 		DATA_OUT
 		DATA_PORT = add;
 		_delay_us(5);
-		//Даём импульс на XT1
+		//Г„Г ВёГ¬ ГЁГ¬ГЇГіГ«ГјГ± Г­Г  XT1
 		puls_xt1();
 	}
 }
