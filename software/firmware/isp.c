@@ -466,64 +466,78 @@ uchar ispEnterProgrammingMode()
 	return avr_progMode();
 }
 
-static void ispUpdateExtended(unsigned long address)
+void ispUpdateExtended(uint32_t address)
 {
-	uchar curr_hiaddr;
+    static uint32_t last_address = 0xFFFFFFFF; // Инициализируем невалидным значением
+    uchar curr_hiaddr;
 
-	curr_hiaddr = (address >> 17);
+    // Быстрая проверка - если адрес в той же 128КБ странице, ничего не делаем
+    if ((address >> 17) == (last_address >> 17)) {
+        return;
+    }
+    
+    curr_hiaddr = (uchar)(address >> 17);
 
-	/* check if extended address byte is changed */
-	if(isp_hiaddr != curr_hiaddr)
-	{
-		isp_hiaddr = curr_hiaddr;
-		/* Load Extended Address byte */
-		DATA_OUT
-		XA0_LOW
-		XA1_LOW
-		BS1_LOW
-		BS2_HIGH
-		DATA_PORT = isp_hiaddr;
-		puls_xt1();
-	}
+    /* Двойная проверка для надежности */
+    if(isp_hiaddr != curr_hiaddr)
+    {
+        isp_hiaddr = curr_hiaddr;
+        last_address = address; // Сохраняем для следующей быстрой проверки
+        
+        /* Загружаем старший байт адреса */
+        DATA_OUT;
+        XA0_LOW;
+        XA1_LOW;
+        BS1_LOW;
+        BS2_HIGH;
+        DATA_PORT = isp_hiaddr;
+        puls_xt1();
+        
+        // Небольшая задержка для стабилизации
+        _delay_us(2);
+    }
 }
 
-uchar ispReadFlash(unsigned long address)
+/* ---------- основная функция ---------- */
+uint8_t ispReadFlash(uint32_t address)
 {
-	uchar result = 0;
+    return (dev_type == 0x00 || dev_type == 0x01)
+           ? parallelReadFlash(address)
+           : serialReadFlash(address);
+}
 
-	if(dev_type == 0x00 || dev_type == 0x01)
-	{
-		avr_loadComm(0x02);
-		ispUpdateExtended(address);
-		avr_loadAdd((address >> 9), 1);
-		avr_loadAdd(((address >> 1) & 0xFF), 0);
-		DATA_IN
-		if(address & 0x1) BS1_HIGH
-		else BS1_LOW
-		OE_LOW
-		_delay_us(1);
-		result = DATA_PIN;
-		OE_HIGH
-	}
-	else
-	{
-		avr_serialExchange(0x4C, 0x02);
-		avr_serialExchange(0x0C, (address >> 1) & 0xFF);
-		avr_serialExchange(0x1C, (address >> 9));
-		avr_serialExchange(0x68, 0x00);
-		if(address & 0x1) //High byte
-		{
-			avr_serialExchange(0x78, 0x00);
-			result = avr_serialExchange(0x7C, 0x00);
-		}
-		else
-		{
-			avr_serialExchange(0x68, 0x00);
-			result = avr_serialExchange(0x6C, 0x00);
-		}
-	}
+/* ---------- Параллельный режим ---------- */
+uint8_t parallelReadFlash(uint32_t address)
+{
+    avr_loadComm(0x02);
+    ispUpdateExtended(address);
+    avr_loadAdd((address >> 9), 1);
+    avr_loadAdd(((address >> 1) & 0xFF), 0);
 
-	return result;
+    DATA_IN;
+    if (address & 1) { BS1_HIGH; }
+    else             { BS1_LOW;  }
+    OE_LOW;  _delay_us(1);
+    uint8_t result = DATA_PIN;
+    OE_HIGH;
+    return result;
+}
+
+/* ---------- Serial mode (25-series) ---------- */
+uint8_t serialReadFlash(uint32_t address)
+{
+    avr_serialExchange(0x4C, 0x02);
+    avr_serialExchange(0x0C, (address >> 1) & 0xFF);
+    avr_serialExchange(0x1C, (address >> 9));
+    avr_serialExchange(0x68, 0x00);
+
+    if (address & 1) {                  // HIGH byte
+        avr_serialExchange(0x78, 0x00);
+        return avr_serialExchange(0x7C, 0x00);
+    } else {                              // LOW byte
+        avr_serialExchange(0x68, 0x00);
+        return avr_serialExchange(0x6C, 0x00);
+    }
 }
 
 uchar ispWriteFlash(uint32_t address, uint8_t data, uint8_t pollmode)
